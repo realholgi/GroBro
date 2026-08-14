@@ -298,6 +298,8 @@ class TestClientPublishInput:
         assert published is not None
         assert published.get("Ppv") == 525.1
         assert published.get("Inverter_Status") == "NormalStatus"
+        assert published.get("Time_total") == 18_806_402
+        assert published.get("inv_start_delay_time") == 65
 
     def test_publish_input_register_bat_temp_filter(self, ha_client):
         from grobro.model.growatt_registers import HomeAssistantInputRegister
@@ -324,6 +326,37 @@ class TestClientPublishInput:
             assert published.get(k) is None
         assert published.get("Ppv") == 100
 
+
+class TestClientTelemetryValidation:
+    def test_warns_for_mismatched_pv_power(self, caplog, ha_client):
+        from grobro.model.growatt_registers import HomeAssistantInputRegister
+
+        caplog.set_level(logging.WARNING)
+        ha_client.publish_input_register(
+            HomeAssistantInputRegister(
+                device_id="QMN000VALIDATE1",
+                payload={"Ppv": 500, "Ppv1": 100, "Ppv2": 100},
+            )
+        )
+
+        assert "PV power mismatch" in caplog.text
+
+    def test_warns_but_preserves_decreased_counter(self, caplog, ha_client):
+        from grobro.model.growatt_registers import HomeAssistantInputRegister
+
+        device_id = "QMN000COUNTER01"
+        ha_client.publish_input_register(
+            HomeAssistantInputRegister(device_id=device_id, payload={"Time_total": 100})
+        )
+
+        caplog.set_level(logging.WARNING)
+        ha_client.publish_input_register(
+            HomeAssistantInputRegister(device_id=device_id, payload={"Time_total": 99})
+        )
+
+        assert "Telemetry counter decreased" in caplog.text
+        state_payload = json.loads(ha_client._client.publish.call_args.args[1])
+        assert state_payload["Time_total"] == 99
 
 class TestClientHoldingInput:
     def test_publish_holding_register_input(self, ha_client):
@@ -474,6 +507,19 @@ class TestClientDiscovery:
         ha_client._discovery_cache.append("QMN000ABC1D2E3FG")
         ha_client._Client__publish_device_discovery("QMN000ABC1D2E3FG")
         assert ha_client._client.publish.called
+
+
+    def test_neo_ipf_is_not_discovered(self, ha_client):
+        device_id = "QMN000ABC1D2E3FG"
+        ha_client._Client__publish_device_discovery(device_id)
+
+        payload = next(
+            json.loads(call.args[1])
+            for call in ha_client._client.publish.call_args_list
+            if call.args[0] == f"homeassistant/device/{device_id}/config" and call.args[1]
+        )
+
+        assert f"grobro_{device_id}_IPF" not in payload["cmps"]
 
     def test_discovery_skip_unchanged_payload(self, ha_client):
         ha_client._Client__publish_device_discovery("QMN000ABC1D2E3FG")

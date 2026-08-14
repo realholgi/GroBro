@@ -200,6 +200,7 @@ class Client:
     _discovery_cache: list[str] = []
     _device_timers: dict[str, Timer] = {}
     _last_energy_values: dict[tuple[str, str], float] = {}
+    _last_counter_values: dict[tuple[str, str], float] = {}
 
     # --- Config read sequencing ---
     _config_read_queues: dict[str, deque[int]] = {}
@@ -309,6 +310,8 @@ class Client:
                 reg = known_registers.input_registers.get(key)
                 if reg:
                     payload[key] = map_enum_value(reg, value)
+
+        self.__validate_telemetry(state.device_id, payload, known_registers)
 
         # Prevent glitches on total_increasing sensors (energy counters)
         if FILTER_DATA_GLITCHES and known_registers:
@@ -600,6 +603,72 @@ class Client:
             if abs(pv - (p1 + p2)) < 10:
                 self._neo_pv_count[device_id] = 2
                 return
+
+    def __validate_telemetry(
+        self, device_id: str, payload: dict, known_registers: GroBroRegisters | None
+    ) -> None:
+        total_pv_power = payload.get("Ppv")
+        pv_channel_powers = [
+            payload[name]
+            for name in ("Ppv1", "Ppv2", "Ppv3", "Ppv4")
+            if isinstance(payload.get(name), (int, float))
+        ]
+        if isinstance(total_pv_power, (int, float)) and pv_channel_powers:
+            channel_total = sum(pv_channel_powers)
+            if abs(total_pv_power - channel_total) > max(10, abs(total_pv_power) * 0.05):
+                LOG.warning(
+                    "PV power mismatch for %s: Ppv=%s, channel sum=%s",
+                    device_id,
+                    total_pv_power,
+                    channel_total,
+                )
+
+        for pv_input in range(1, 5):
+            voltage = payload.get(f"Vpv{pv_input}")
+            current = payload.get(f"Ipv{pv_input}")
+            power = payload.get(f"Ppv{pv_input}")
+            if not (
+                isinstance(voltage, (int, float))
+                and isinstance(current, (int, float))
+                and isinstance(power, (int, float))
+            ):
+                continue
+            if voltage <= 0 or current <= 0 or power <= 0:
+                continue
+            calculated_power = voltage * current
+            if abs(power - calculated_power) > max(5, calculated_power * 0.05):
+                LOG.warning(
+                    "PV%d power mismatch for %s: Ppv%s=%s, voltage × current=%s",
+                    pv_input,
+                    device_id,
+                    pv_input,
+                    power,
+                    calculated_power,
+                )
+
+        if not known_registers:
+            return
+        for name, value in payload.items():
+            register = known_registers.input_registers.get(name)
+            if not isinstance(value, (int, float)) or not register:
+                continue
+            is_increasing_counter = (
+                name == "Time_total"
+                or register.homeassistant.state_class == "total_increasing"
+            )
+            if not is_increasing_counter:
+                continue
+            key = (device_id, name)
+            previous = self._last_counter_values.get(key)
+            if previous is not None and value < previous:
+                LOG.warning(
+                    "Telemetry counter decreased for %s/%s: %s -> %s",
+                    device_id,
+                    name,
+                    previous,
+                    value,
+                )
+            self._last_counter_values[key] = value
 
     def __publish_device_discovery(self, device_id: str, effective_max_bat: int | None = None):
         known_registers = get_known_registers(device_id)
