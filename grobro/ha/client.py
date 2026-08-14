@@ -4,10 +4,10 @@ import os
 import ssl
 import json
 import logging
-from threading import Timer
+from datetime import datetime, timezone
 from typing import Callable, Optional
 from collections import deque
-from threading import Lock
+from threading import Lock, Timer
 
 import paho.mqtt.client as mqtt
 
@@ -278,6 +278,7 @@ class Client:
         # discovery + availability
         self.__publish_device_discovery(state.device_id, effective_max_bat)
         self.__publish_availability(state.device_id, True)
+        self.__publish_last_telemetry(state.device_id)
         if DEVICE_TIMEOUT > 0:
             self.__reset_device_timer(state.device_id)
 
@@ -580,6 +581,14 @@ class Client:
                 retain=PUBLISH_SENSORS_RETAINED,
             )
 
+    def __publish_last_telemetry(self, device_id: str):
+        payload = {"last_telemetry": datetime.now(timezone.utc).isoformat()}
+        self._client.publish(
+            f"{HA_BASE_TOPIC}/grobro/{device_id}/health",
+            json.dumps(payload, separators=(",", ":")),
+            retain=PUBLISH_SENSORS_RETAINED,
+        )
+
     def __detect_neo_pv_count(self, device_id: str, payload: dict) -> None:
         if not (device_id.startswith("QMN") or device_id.startswith("PTQ") or device_id.startswith("VWQ")):
             return
@@ -775,6 +784,17 @@ class Client:
             "state_topic": f"{HA_BASE_TOPIC}/grobro/{device_id}/type",
             "unique_id": type_unique_id,
             "icon": "mdi:chip",
+        }
+
+        last_telemetry_unique_id = f"grobro_{device_id}_last_telemetry"
+        payload["cmps"][last_telemetry_unique_id] = {
+            "platform": "sensor",
+            "name": "Last Telemetry Update",
+            "state_topic": f"{HA_BASE_TOPIC}/grobro/{device_id}/health",
+            "value_template": "{{ value_json['last_telemetry'] }}",
+            "device_class": "timestamp",
+            "unique_id": last_telemetry_unique_id,
+            "icon": "mdi:clock-check-outline",
         }
 
         # Online Entity
