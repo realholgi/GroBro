@@ -3,7 +3,7 @@ description: "Growatt MQTT Message Broker"
 version: "2.7.5"
 slug: "grobro"
 init: false
-url: https://github.com/robertzaage/GroBro
+url: https://github.com/realholgi/GroBro
 arch:
   - armhf
   - armv7
