@@ -936,6 +936,17 @@ class Client:
         topic = f"{HA_BASE_TOPIC}/config/grobro/{device_id}/{register_no}/get"
         self._client.publish(topic, value, retain=True)
 
+        # Config register 21 contains the datalogger software version. Keep it
+        # in Home Assistant's device information rather than exposing an entity.
+        if register_no == 21 and isinstance(value, str):
+            config = self._config_cache.get(device_id)
+            if config is None:
+                config = model.DeviceConfig.from_file(f"config_{device_id}.json")
+            if config is None:
+                config = model.DeviceConfig(serial_number=device_id)
+            if config.sw_version != value:
+                config.sw_version = value
+                self.set_config(device_id, config)
         with self._config_read_lock:
             inflight = self._config_read_inflight.get(device_id)
             if inflight != register_no:

@@ -60,6 +60,20 @@
         "icon": "mdi:server-network"
       }
     },
+    "firmware_version": {
+      "growatt": {
+        "register_no": 21,
+        "data": {
+          "data_type": "STRING"
+        }
+      },
+      "homeassistant": {
+        "publish": false,
+        "name": "Firmware Version",
+        "type": "sensor",
+        "icon": "mdi:information"
+      }
+    },
     "system_time": {
       "growatt": {
         "register_no": 31,
