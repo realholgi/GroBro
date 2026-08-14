@@ -146,6 +146,8 @@ class HomeAssistantConfigRegister(BaseModel):
     min: Optional[int] = None
     max: Optional[int] = None
     step: Optional[int] = None
+    state_class: Optional[str] = None
+    device_class: Optional[str] = None
     unit_of_measurement: Optional[str] = None
     icon: Optional[str] = None
 
