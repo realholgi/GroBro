@@ -198,6 +198,26 @@ class TestClientOnMessage:
         client._client.on_message(None, None, msg)
         client.on_holding_register_input.assert_called_once()
 
+    def test_modbus_single_register_neo_normalizes_full_power_limit(self, client):
+        response = struct.pack(
+            ">HHHBB30sHHH",
+            1,
+            7,
+            38,
+            1,
+            5,
+            b"QMN000ABC1D2E3FG".ljust(30, b"\x00"),
+            3,
+            3,
+            1,
+        ) + b"\x00\x00"
+        msg = _msg("c/33/QMN000ABC1D2E3FG", scramble(response))
+        client._client.on_message(None, None, msg)
+
+        state = client.on_holding_register_input.call_args.args[0]
+        assert state.payload[0].name == "output_power_limit"
+        assert state.payload[0].value == 100
+
     def test_modbus_preset_single_neo_publishes_confirmed_value(self, client):
         response = struct.pack(
             ">HHHBB30sHBH",

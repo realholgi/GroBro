@@ -49,6 +49,12 @@ def _extract_device_id(topic: str) -> str:
     """
     return _DEVICE_ID_RE.sub("", topic.split("/")[-1])
 
+def _normalize_neo_output_power_limit(value: float | int) -> float | int:
+    # NEO encodes its 100% output-power limit as raw value 1 in read responses.
+    return 100 if value == 1 else value
+
+
+
 
 LOG = logging.getLogger(__name__)
 HA_BASE_TOPIC = os.getenv("HA_BASE_TOPIC", "homeassistant")
@@ -390,6 +396,8 @@ class Client:
                     if register.growatt.position.register_no != preset_response.register_no:
                         continue
                     value = register.growatt.data.parse(preset_response.value.to_bytes(2, "big"))
+                    if name == "output_power_limit":
+                        value = _normalize_neo_output_power_limit(value)
                     if value is not None:
                         state.payload.append(
                             HomeAssistantHoldingRegisterValue(
@@ -444,6 +452,8 @@ class Client:
                         value = register.growatt.data.parse(data_raw)
                         if value is None:
                             continue
+                        if modbus_device_id.startswith("QMN") and name == "output_power_limit":
+                            value = _normalize_neo_output_power_limit(value)
                         if register.homeassistant.type=="switch":
                             value = "ON" if value==1 else "OFF"
                         state.payload.append(
