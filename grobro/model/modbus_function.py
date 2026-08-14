@@ -111,6 +111,36 @@ class GrowattModbusFunctionSingle(BaseModel):
             value=value,
         )
 
+    @staticmethod
+    def parse_response_grobro(buffer) -> Optional["GrowattModbusFunctionSingle"]:
+        if len(buffer) < 45:
+            return None
+
+        (
+            _unknown,
+            _constant_7,
+            message_length,
+            _device_address,
+            function,
+            device_id_raw,
+            register,
+            status,
+            value,
+        ) = struct.unpack(">HHHBB30sHBH", buffer[:43])
+        if (
+            message_length != len(buffer[8:])
+            or function != GrowattModbusFunction.PRESET_SINGLE_REGISTER
+            or status != 0
+        ):
+            return None
+
+        return GrowattModbusFunctionSingle(
+            device_id=device_id_raw.decode("ascii", errors="ignore").strip("\x00"),
+            function=function,
+            register_no=register,
+            value=value,
+        )
+
     def build_grobro(self) -> bytes:
         return struct.pack(
             MODBUS_COMMAND_STRUCT,

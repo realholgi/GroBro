@@ -381,6 +381,28 @@ class Client:
                         self.on_config(device_id, config)
                         return
 
+            # NEO preset-single responses carry the confirmed register value after
+            # a one-byte status field, unlike standard Modbus register blocks.
+            preset_response = GrowattModbusFunctionSingle.parse_response_grobro(unscrambled)
+            if preset_response and device_id.startswith("QMN"):
+                state = HomeAssistantHoldingRegisterInput(device_id=device_id)
+                for name, register in KNOWN_NEO_REGISTERS.holding_registers.items():
+                    if register.growatt.position.register_no != preset_response.register_no:
+                        continue
+                    value = register.growatt.data.parse(preset_response.value.to_bytes(2, "big"))
+                    if value is not None:
+                        state.payload.append(
+                            HomeAssistantHoldingRegisterValue(
+                                name=name,
+                                value=value,
+                                register=register.homeassistant,
+                            )
+                        )
+                    break
+                if state.payload:
+                    self.on_holding_register_input(state)
+                return
+
             # Generic modbus message
             modbus_message = GrowattModbusMessage.parse_grobro(unscrambled)
             LOG.debug("Received modbus message: %s", modbus_message)
