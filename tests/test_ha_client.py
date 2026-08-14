@@ -386,6 +386,7 @@ class TestClientOnMessage:
             ha_client._client.on_message(None, None, msg)
         ha_client.on_command.assert_called()
         assert mock_timer.called
+        assert 21 in ha_client._config_read_queues["QMN000ABC1D2E3FG"]
 
     def test_button_read_single(self, ha_client):
         msg = _msg("homeassistant/button/grobro/QMN000ABC1D2E3FG/output_power_limit/read")
@@ -490,6 +491,21 @@ class TestClientDiscovery:
         assert component["device_class"] == "signal_strength"
         assert component["state_class"] == "measurement"
 
+    def test_neo_firmware_version_is_published_as_device_info(self, ha_client):
+        device_id = "QMN000ABC1D2E3FG"
+        ha_client._config_read_inflight[device_id] = 21
+
+        with patch("grobro.ha.client.Timer"):
+            ha_client.handle_config_read_response(device_id, 21, "3.8.2.8")
+
+        assert ha_client._config_cache[device_id].sw_version == "3.8.2.8"
+        payload = next(
+            json.loads(call.args[1])
+            for call in ha_client._client.publish.call_args_list
+            if call.args[0] == f"homeassistant/device/{device_id}/config" and call.args[1]
+        )
+        assert payload["dev"]["sw_version"] == "3.8.2.8"
+        assert f"grobro_{device_id}_cmd_firmware_version" not in payload["cmps"]
     def test_discovery_skip_unchanged_payload(self, ha_client):
         ha_client._Client__publish_device_discovery("QMN000ABC1D2E3FG")
         first_calls = len(ha_client._client.publish.call_args_list)
