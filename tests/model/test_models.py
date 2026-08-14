@@ -214,7 +214,7 @@ class TestModbusBlock:
 class TestModbusMessage:
     def test_get_data_match(self):
         msg = GrowattModbusMessage(
-            unknown=0,
+            transaction_id=0,
             device_id="TEST",
             function=GrowattModbusFunction.READ_INPUT_REGISTER,
             register_blocks=[
@@ -231,7 +231,7 @@ class TestModbusMessage:
 
     def test_get_data_no_match(self):
         msg = GrowattModbusMessage(
-            unknown=0,
+            transaction_id=0,
             device_id="TEST",
             function=GrowattModbusFunction.READ_INPUT_REGISTER,
             register_blocks=[

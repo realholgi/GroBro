@@ -405,7 +405,7 @@ class Client:
 
             # Generic modbus message
             modbus_message = GrowattModbusMessage.parse_grobro(unscrambled)
-            LOG.debug("Received modbus message: %s", modbus_message)
+            LOG.debug("Received Modbus response: %s", modbus_message)
 
             if modbus_message:
                 known_registers = None

@@ -12,9 +12,9 @@ class GrowattModbusFunctionMultiple(BaseModel):
     to read or write multiple registers.
 
     Structure:
-        - H - 2 byte unknown
-        - H - 2 byte constant 7
-        - H - 2 byte message length (excluding register count, constant and message length)
+        - H - 2 byte transaction ID (echoed in responses)
+        - H - 2 byte Growatt protocol ID (constant: 7)
+        - H - 2 byte frame length from offset 8 (includes trailing CRC)
         - B - 1 byte modbus device address (seems to be constant 1 in mqtt)
         - B - 1 byte function
         - 30s - 30 byte zero-padded device id
@@ -74,9 +74,9 @@ class GrowattModbusFunctionSingle(BaseModel):
     to read or write single registers.
 
     Structure:
-        - H - 2 byte unknown
-        - H - 2 byte constant 7
-        - H - 2 byte message length (excluding register count, constant and message length)
+        - H - 2 byte transaction ID (echoed in responses)
+        - H - 2 byte Growatt protocol ID (observed: 7)
+        - H - 2 byte frame length from offset 8 (includes trailing CRC)
         - B - 1 byte modbus device address (seems to be constant 1 in mqtt)
         - B - 1 byte function
         - 30s - 30 byte zero-padded device id
