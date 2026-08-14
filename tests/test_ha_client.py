@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -300,6 +301,13 @@ class TestClientPublishInput:
         assert published.get("Inverter_Status") == "NormalStatus"
         assert published.get("Time_total") == 18_806_402
         assert published.get("inv_start_delay_time") == 65
+        health_topic = "homeassistant/grobro/QMN000ABC1D2E3FG/health"
+        health_payload = next(
+            json.loads(call.args[1])
+            for call in ha_client._client.publish.call_args_list
+            if call.args[0] == health_topic
+        )
+        assert datetime.fromisoformat(health_payload["last_telemetry"]).tzinfo is not None
 
     def test_publish_input_register_bat_temp_filter(self, ha_client):
         from grobro.model.growatt_registers import HomeAssistantInputRegister
@@ -550,6 +558,19 @@ class TestClientDiscovery:
         )
 
         assert f"grobro_{device_id}_IPF" not in payload["cmps"]
+    def test_neo_discovery_includes_last_telemetry(self, ha_client):
+        device_id = "QMN000ABC1D2E3FG"
+        ha_client._Client__publish_device_discovery(device_id)
+
+        payload = next(
+            json.loads(call.args[1])
+            for call in ha_client._client.publish.call_args_list
+            if call.args[0] == f"homeassistant/device/{device_id}/config" and call.args[1]
+        )
+
+        component = payload["cmps"][f"grobro_{device_id}_last_telemetry"]
+        assert component["device_class"] == "timestamp"
+        assert component["state_topic"] == f"homeassistant/grobro/{device_id}/health"
     def test_discovery_skip_unchanged_payload(self, ha_client):
         ha_client._Client__publish_device_discovery("QMN000ABC1D2E3FG")
         first_calls = len(ha_client._client.publish.call_args_list)
