@@ -1,10 +1,13 @@
 import os
+import struct
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from paho.mqtt.client import MQTTMessage
+
+from grobro.grobro.builder import scramble
 
 from grobro.grobro.client import Client, get_property, dump_message_binary
 import grobro.grobro.client as grobro_client
@@ -198,6 +201,47 @@ class TestClientOnMessage:
         msg = _msg("c/33/QMN000ABC1D2E3FG", data)
         client._client.on_message(None, None, msg)
         client.on_holding_register_input.assert_called_once()
+
+    def test_modbus_single_register_neo_normalizes_full_power_limit(self, client):
+        response = struct.pack(
+            ">HHHBB30sHHH",
+            1,
+            7,
+            38,
+            1,
+            5,
+            b"QMN000ABC1D2E3FG".ljust(30, b"\x00"),
+            3,
+            3,
+            1,
+        ) + b"\x00\x00"
+        msg = _msg("c/33/QMN000ABC1D2E3FG", scramble(response))
+        client._client.on_message(None, None, msg)
+
+        state = client.on_holding_register_input.call_args.args[0]
+        assert state.payload[0].name == "output_power_limit"
+        assert state.payload[0].value == 100
+
+    def test_modbus_preset_single_neo_publishes_confirmed_value(self, client):
+        response = struct.pack(
+            ">HHHBB30sHBH",
+            1,
+            7,
+            37,
+            1,
+            6,
+            b"QMN000ABC1D2E3FG".ljust(30, b"\x00"),
+            3,
+            0,
+            74,
+        ) + b"\x00\x00"
+        msg = _msg("c/33/QMN000ABC1D2E3FG", scramble(response))
+
+        client._client.on_message(None, None, msg)
+
+        state = client.on_holding_register_input.call_args.args[0]
+        assert state.payload[0].name == "output_power_limit"
+        assert state.payload[0].value == 74
 
     def test_modbus_prese_single_noah(self, client):
         data = (Path(DATA_DIR) / "NoahPresetSingle_OutputLimit.bin").read_bytes()

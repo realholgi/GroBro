@@ -171,6 +171,28 @@ class TestModbusFunctionMultiple:
         rebuilt = parsed.build_grobro()
         assert rebuilt == pkt
 
+    def test_parse_preset_single_response(self):
+        packet = struct.pack(
+            ">HHHBB30sHBH",
+            1,
+            7,
+            37,
+            1,
+            GrowattModbusFunction.PRESET_SINGLE_REGISTER,
+            b"QMN000ABC1D2E3FG".ljust(30, b"\x00"),
+            3,
+            0,
+            74,
+        ) + b"\x00\x00"
+
+        response = GrowattModbusFunctionSingle.parse_response_grobro(packet)
+
+        assert response is not None
+        assert response.device_id == "QMN000ABC1D2E3FG"
+        assert response.function == GrowattModbusFunction.PRESET_SINGLE_REGISTER
+        assert response.register_no == 3
+        assert response.value == 74
+
 
 class TestModbusBlock:
     def test_parse_error(self):
@@ -192,7 +214,7 @@ class TestModbusBlock:
 class TestModbusMessage:
     def test_get_data_match(self):
         msg = GrowattModbusMessage(
-            unknown=0,
+            transaction_id=0,
             device_id="TEST",
             function=GrowattModbusFunction.READ_INPUT_REGISTER,
             register_blocks=[
@@ -209,7 +231,7 @@ class TestModbusMessage:
 
     def test_get_data_no_match(self):
         msg = GrowattModbusMessage(
-            unknown=0,
+            transaction_id=0,
             device_id="TEST",
             function=GrowattModbusFunction.READ_INPUT_REGISTER,
             register_blocks=[
