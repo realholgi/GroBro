@@ -162,6 +162,14 @@ with resources.files(__package__).joinpath("growatt_neo_registers.json").open("r
     KNOWN_NEO_REGISTERS = GroBroRegisters.model_validate(json.load(f))
 with resources.files(__package__).joinpath("growatt_noah_registers.json").open("rb") as f:
     KNOWN_NOAH_REGISTERS = GroBroRegisters.model_validate(json.load(f))
+
+# NEO dataloggers expose Wi-Fi RSSI through config register 76 as NOAH/NEXA do.
+# Keep the HA metadata identical to the established NOAH definition.
+if "wifi_signal_strength" not in KNOWN_NEO_REGISTERS.config_registers:
+    KNOWN_NEO_REGISTERS.config_registers["wifi_signal_strength"] = (
+        KNOWN_NOAH_REGISTERS.config_registers["wifi_signal_strength"].model_copy(deep=True)
+    )
+
 with resources.files(__package__).joinpath("growatt_nexa_registers.json").open("rb") as f:
     KNOWN_NEXA_REGISTERS = GroBroRegisters.model_validate(json.load(f))
 with resources.files(__package__).joinpath("growatt_spf_registers.json").open("rb") as f:
