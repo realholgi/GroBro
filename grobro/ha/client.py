@@ -1022,6 +1022,11 @@ class Client:
         self.__kickoff_next_config_read(device_id)
 
     def handle_config_read_response(self, device_id: str, register_no: int, value: str | int):
+        with self._config_read_lock:
+            inflight = self._config_read_inflight.get(device_id)
+            if inflight != register_no:
+                return
+
         topic = f"{HA_BASE_TOPIC}/config/grobro/{device_id}/{register_no}/get"
         self._client.publish(topic, value, retain=True)
 
@@ -1036,11 +1041,8 @@ class Client:
             if config.sw_version != value:
                 config.sw_version = value
                 self.set_config(device_id, config)
-        with self._config_read_lock:
-            inflight = self._config_read_inflight.get(device_id)
-            if inflight != register_no:
-                return
 
+        with self._config_read_lock:
             LOG.debug(
                 "Config read completed for %s register=%s",
                 device_id,

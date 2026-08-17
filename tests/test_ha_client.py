@@ -791,6 +791,18 @@ class TestClientConfigReadSequencing:
                 with patch("grobro.ha.client.Timer"):
                     c.handle_config_read_response("QMN000ABC1D2E3FG", 999, -55)
                 assert c._config_read_inflight["QMN000ABC1D2E3FG"] == 1280
+                c._client.publish.assert_not_called()
+
+    def test_handle_config_read_response_without_active_request(self):
+        with patch("grobro.ha.client.mqtt.Client"):
+            with patch("grobro.ha.client.os.listdir", return_value=[]):
+                c = Client(MQTTConfig(host="localhost", port=1883))
+                config = c._config_cache["QMN000ABC1D2E3FG"]
+                sw_version = config.sw_version
+                c.handle_config_read_response("QMN000ABC1D2E3FG", 21, "3.8.2.8")
+                c._client.publish.assert_not_called()
+                assert c._config_cache["QMN000ABC1D2E3FG"] is config
+                assert config.sw_version == sw_version
 
     def test_config_read_timeout(self):
         with patch("grobro.ha.client.mqtt.Client"):

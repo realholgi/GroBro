@@ -1,4 +1,8 @@
 import json
+import struct
+
+import pytest
+
 from grobro.grobro import parser
 
 
@@ -78,5 +82,44 @@ def test_parse_neo_config_read_uses_declared_value_length():
 
     assert result["message_type"] == 0x0119
     assert result["device_id"] == "QMN000ABC1D2E3FG"
+    assert result["register_no"] == 76
+    assert result["value"] == "-055"
+
+
+def _config_packet(message_type, register_no, value_len, value=b"", trailing=b""):
+    fixed_header = struct.pack(
+        ">4sHH16s14sH1xHH",
+        b"\x00\x01\x00\x07",
+        0x30,
+        message_type,
+        b"QMN000ABC1D2E3FG",
+        b"\x00" * 14,
+        2,
+        register_no,
+        value_len,
+    )
+    return fixed_header + value + trailing + b"\xca\xf3"
+
+
+def test_parse_neo_config_write_uses_remaining_payload():
+    result = parser.parse_config_message(
+        _config_packet(0x0118, 21, 0, b"3.8.2.8")
+    )
+
+    assert result["message_type"] == 0x0118
+    assert result["register_no"] == 21
+    assert result["value"] == "3.8.2.8"
+
+
+@pytest.mark.parametrize("value_len, value", [(4, b"abc"), (0xFFFF, b"")])
+def test_parse_neo_config_read_rejects_invalid_value_length(value_len, value):
+    with pytest.raises(ValueError, match="exceeds packet payload"):
+        parser.parse_config_message(_config_packet(0x0119, 76, value_len, value))
+
+
+def test_parse_neo_config_read_without_trailing_tlvs():
+    result = parser.parse_config_message(_config_packet(0x0119, 76, 4, b"-055"))
+
+    assert result["message_type"] == 0x0119
     assert result["register_no"] == 76
     assert result["value"] == "-055"
