@@ -193,6 +193,46 @@ class TestModbusFunctionMultiple:
         assert response.register_no == 3
         assert response.value == 74
 
+    def test_parse_preset_single_response_rejects_error_status(self):
+        packet = struct.pack(
+            ">HHHBB30sHBH",
+            1,
+            7,
+            37,
+            1,
+            GrowattModbusFunction.PRESET_SINGLE_REGISTER,
+            b"QMN000ABC1D2E3FG".ljust(30, b"\x00"),
+            3,
+            1,
+            74,
+        ) + b"\x00\x00"
+
+        assert GrowattModbusFunctionSingle.parse_response_grobro(packet) is None
+
+    @pytest.mark.parametrize(
+        ("message_length", "truncate"),
+        [(36, False), (37, True)],
+    )
+    def test_parse_preset_single_response_rejects_invalid_length(
+        self, message_length, truncate
+    ):
+        packet = struct.pack(
+            ">HHHBB30sHBH",
+            1,
+            7,
+            message_length,
+            1,
+            GrowattModbusFunction.PRESET_SINGLE_REGISTER,
+            b"QMN000ABC1D2E3FG".ljust(30, b"\x00"),
+            3,
+            0,
+            74,
+        ) + b"\x00\x00"
+
+        if truncate:
+            packet = packet[:-1]
+
+        assert GrowattModbusFunctionSingle.parse_response_grobro(packet) is None
 
 class TestModbusBlock:
     def test_parse_error(self):
